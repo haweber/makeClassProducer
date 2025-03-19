@@ -22,6 +22,7 @@ BranchNamesFile are hardcoded below!
 
 const string& branchNamesFile_ = "";
 
+#include "TLeaf.h"
 #include "TBranch.h"
 #include "TString.h"
 #include "TFile.h"
@@ -166,10 +167,11 @@ void makeHeaderFile(TFile *f, const string& treeName, bool paranoid, const strin
     fullarray = ev->GetListOfBranches();
   }
 
-  // if (have_aliases && fullarray->GetSize() != ev->GetListOfBranches()->GetSize()) {
-  //     std::cout << "Tree has " << fullarray->GetSize() << " aliases and " << ev->GetListOfBranches()->GetSize() << " branches. Exiting." << std::endl;
-  //     return;
-  // }
+   if (have_aliases && fullarray->GetSize() != ev->GetListOfBranches()->GetSize()) {
+       std::cout << "Tree has " << fullarray->GetSize() << " aliases and " << ev->GetListOfBranches()->GetSize() << " branches. Exiting." << std::endl;
+       return;
+   }
+   std::cout << fullarray->GetSize() <<", " << ev->GetListOfBranches()->GetSize() << endl;
 
   TList *aliasarray = new TList();
   for (Int_t i = 0; i < fullarray->GetSize(); ++i) {
@@ -177,6 +179,7 @@ void makeHeaderFile(TFile *f, const string& treeName, bool paranoid, const strin
     TBranch *branch = 0;
     if (fullarray->At(i) == 0) continue;
     TString aliasname(fullarray->At(i)->GetName());
+
     if (have_aliases){
       branch = ev->GetBranch(ev->GetAlias(aliasname.Data()));
       aliasname = fullarray->At(i)->GetName();
@@ -189,6 +192,7 @@ void makeHeaderFile(TFile *f, const string& treeName, bool paranoid, const strin
     TString branchname(branch->GetName());
     TString branchtitle(branch->GetTitle());
     TString branchclass(branch->GetClassName());
+    TString branchtype(branch->GetLeaf(branch->GetName())->GetTypeName());
     if (!branchname.BeginsWith("int") &&
         !branchname.BeginsWith("uint") &&
         !branchname.BeginsWith("ull") &&
@@ -197,6 +201,14 @@ void makeHeaderFile(TFile *f, const string& treeName, bool paranoid, const strin
         !branchname.BeginsWith("float") &&
         !branchname.BeginsWith("double") &&
         !branchname.BeginsWith("uchars") &&
+
+	!branchtype.BeginsWith("Float") &&
+        !branchtype.BeginsWith("Int") &&
+        !branchtype.BeginsWith("Bool") &&
+        !branchtype.BeginsWith("UInt") &&
+        !branchtype.BeginsWith("UChar") &&
+        !branchtype.BeginsWith("Double") &&
+	
         !branchtitle.EndsWith("/F") &&
         !branchtitle.EndsWith("/I") &&
         !branchtitle.EndsWith("/i") &&
@@ -215,7 +227,7 @@ void makeHeaderFile(TFile *f, const string& treeName, bool paranoid, const strin
         !branchclass.Contains("TString") &&
         !branchclass.Contains("long long"))
       continue;
-
+      
     // if (branchclass.Contains("TString"))
     // {
     //     std::cout << "Adding branch " << branchtitle.Data() << " to list." << std::endl;
@@ -224,6 +236,7 @@ void makeHeaderFile(TFile *f, const string& treeName, bool paranoid, const strin
 
     aliasarray->Add(fullarray->At(i));
   }
+  cout << "size " << aliasarray->GetSize() << endl;
 
   for (Int_t i = 0; i < aliasarray->GetSize(); ++i) {
 
@@ -238,6 +251,8 @@ void makeHeaderFile(TFile *f, const string& treeName, bool paranoid, const strin
 
     TString classname = branch->GetClassName();
     TString title     = branch->GetTitle();
+    TString branchtype(branch->GetLeaf(branch->GetName())->GetTypeName());
+    //cout << i << " " << classname << " " << title << endl;
     if (classname.Contains("vector")) {
       if(classname.Contains("edm::Wrapper<") ) {
         classname = classname(0,classname.Length()-2);
@@ -264,17 +279,19 @@ void makeHeaderFile(TFile *f, const string& treeName, bool paranoid, const strin
           headerf << "  " << classname << " *" << aliasname << "_;" << endl;
         }
       } else {
-        if(title.EndsWith("/i"))
+        if(title.EndsWith("/i") || branchtype.BeginsWith("UInt"))
           headerf << "  unsigned int " << aliasname << "_;" << endl;
-        if(title.EndsWith("/l"))
+        if(title.EndsWith("/c") || branchtype.BeginsWith("UChar"))
+          headerf << "  unsigned char " << aliasname << "_;" << endl;
+        if(title.EndsWith("/l") || branchtype.BeginsWith("Long"))
           headerf << "  unsigned long long " << aliasname << "_;" << endl;
-        if(title.EndsWith("/F"))
+        if(title.EndsWith("/F") || branchtype.BeginsWith("Float"))
           headerf << "  float    " << aliasname << "_;" << endl;
-        if(title.EndsWith("/I"))
+        if(title.EndsWith("/I") || branchtype.BeginsWith("Int"))
           headerf << "  int      " << aliasname << "_;" << endl;
-        if(title.EndsWith("/O"))
+        if(title.EndsWith("/O") || branchtype.BeginsWith("Bool"))
           headerf << "  bool     " << aliasname << "_;" << endl;
-        if(title.EndsWith("/D"))
+        if(title.EndsWith("/D") || branchtype.BeginsWith("Double"))
           headerf << "  double   " << aliasname << "_;" << endl;
       }
     }
@@ -302,6 +319,7 @@ void makeHeaderFile(TFile *f, const string& treeName, bool paranoid, const strin
 
     TString classname = branch->GetClassName();
     TString title = branch->GetTitle();
+    TString branchtype(branch->GetLeaf(branch->GetName())->GetTypeName());
     bool isSkimmedNtuple = false;
     if (!classname.Contains("edm::Wrapper<") &&
         (classname.Contains("vector") || classname.Contains("LorentzVector") ) )
@@ -320,17 +338,19 @@ void makeHeaderFile(TFile *f, const string& treeName, bool paranoid, const strin
       if(classname != "" ) {
         headerf << "  const " << classname << " &" << aliasname << "();" << endl;
       } else {
-        if(title.EndsWith("/i"))
+        if(title.EndsWith("/i") || branchtype.BeginsWith("UInt"))
           headerf << "  const unsigned int &" << aliasname << "();" << endl;
-        if(title.EndsWith("/l"))
+        if(title.EndsWith("/c") || branchtype.BeginsWith("UChar"))
+          headerf << "  const unsigned char &" << aliasname << "();" << endl;
+        if(title.EndsWith("/l") || branchtype.BeginsWith("Long"))
           headerf << "  const unsigned long long &" << aliasname << "();" << endl;
-        if(title.EndsWith("/F"))
+        if(title.EndsWith("/F") || branchtype.BeginsWith("Float"))
           headerf << "  const float &" << aliasname << "();" << endl;
-        if(title.EndsWith("/I"))
+        if(title.EndsWith("/I") || branchtype.BeginsWith("Int"))
           headerf << "  const int &" << aliasname << "();" << endl;
-        if(title.EndsWith("/O"))
+        if(title.EndsWith("/O") || branchtype.BeginsWith("Bool"))
           headerf << "  const bool &" << aliasname << "();" << endl;
-        if(title.EndsWith("/D"))
+        if(title.EndsWith("/D") || branchtype.BeginsWith("Double"))
           headerf << "  const double &" << aliasname << "();" << endl;
       }
     }
@@ -406,6 +426,7 @@ void makeHeaderFile(TFile *f, const string& treeName, bool paranoid, const strin
 
     TString classname = branch->GetClassName();
     TString title = branch->GetTitle();
+    TString branchtype(branch->GetLeaf(branch->GetName())->GetTypeName());
     if (classname.Contains("vector")) {
       if(classname.Contains("edm::Wrapper") ) {
         classname = classname(0,classname.Length()-2);
@@ -420,22 +441,25 @@ void makeHeaderFile(TFile *f, const string& treeName, bool paranoid, const strin
       if(classname != "" ) {
         headerf << "  const " << classname << " &" << aliasname << "()";
       } else {
-        if(title.EndsWith("/i")){
+        if(title.EndsWith("/i") || branchtype.BeginsWith("UInt")){
           headerf << "  const unsigned int &" << aliasname << "()";
         }
-        if(title.EndsWith("/l")){
+        if(title.EndsWith("/c") || branchtype.BeginsWith("UChar")){
+          headerf << "  const unsigned char &" << aliasname << "()";
+        }
+        if(title.EndsWith("/l") || branchtype.BeginsWith("Long")){
           headerf << "  const unsigned long long &" << aliasname << "()";
         }
-        if(title.EndsWith("/F")){
+        if(title.EndsWith("/F") || branchtype.BeginsWith("Float")){
           headerf << "  const float &" << aliasname << "()";
         }
-        if(title.EndsWith("/I")){
+        if(title.EndsWith("/I") || branchtype.BeginsWith("Int")){
           headerf << "  const int &" << aliasname << "()";
         }
-        if(title.EndsWith("/O")){
+        if(title.EndsWith("/O") || branchtype.BeginsWith("Bool")){
           headerf << "  const bool &" << aliasname << "()";
         }
-        if(title.EndsWith("/D")){
+        if(title.EndsWith("/D") || branchtype.BeginsWith("Double")){
           headerf << "  const double &" << aliasname << "()";
         }
       }
@@ -527,6 +551,7 @@ void makeCCFile(TFile *f, const string& Classname, const string& nameSpace, cons
     TString branchname(branch->GetName());
     TString branchtitle(branch->GetTitle());
     TString branchclass(branch->GetClassName());
+    TString branchtype(branch->GetLeaf(branch->GetName())->GetTypeName());
     if (!branchname.BeginsWith("int") &&
         !branchname.BeginsWith("uint") &&
         !branchname.BeginsWith("ull") &&
@@ -535,6 +560,14 @@ void makeCCFile(TFile *f, const string& Classname, const string& nameSpace, cons
         !branchname.BeginsWith("float") &&
         !branchname.BeginsWith("double") &&
         !branchname.BeginsWith("uchars") &&
+	
+	!branchtype.BeginsWith("Float") &&
+        !branchtype.BeginsWith("Int") &&
+        !branchtype.BeginsWith("Bool") &&
+        !branchtype.BeginsWith("UInt") &&
+        !branchtype.BeginsWith("UChar") &&
+        !branchtype.BeginsWith("Double") &&
+
         !branchtitle.EndsWith("/F") &&
         !branchtitle.EndsWith("/I") &&
         !branchtitle.EndsWith("/i") &&
@@ -662,6 +695,7 @@ void makeCCFile(TFile *f, const string& Classname, const string& nameSpace, cons
 
     TString classname = branch->GetClassName();
     TString title = branch->GetTitle();
+    TString branchtype(branch->GetLeaf(branch->GetName())->GetTypeName());
     bool isSkimmedNtuple = false;
     if (!classname.Contains("edm::Wrapper<") &&
         (classname.Contains("vector") || classname.Contains("LorentzVector")))
@@ -680,17 +714,19 @@ void makeCCFile(TFile *f, const string& Classname, const string& nameSpace, cons
       if (classname != "" ) {
         implf << "const " << classname << " &" << funcname << "() {" << endl;
       } else {
-        if (title.EndsWith("/i"))
+        if (title.EndsWith("/i") || branchtype.BeginsWith("UInt"))
           implf << "const unsigned int &" << funcname << "() {" << endl;
-        if (title.EndsWith("/l"))
+        if (title.EndsWith("/c") || branchtype.BeginsWith("UChar"))
+          implf << "const unsigned char &" << funcname << "() {" << endl;
+        if (title.EndsWith("/l") || branchtype.BeginsWith("Long"))
           implf << "const unsigned long long &" << funcname << "() {" << endl;
-        if (title.EndsWith("/F"))
+        if (title.EndsWith("/F") || branchtype.BeginsWith("Float"))
           implf << "const float &" << funcname << "() {" << endl;
-        if (title.EndsWith("/I"))
+        if (title.EndsWith("/I") || branchtype.BeginsWith("Int"))
           implf << "const int &" << funcname << "() {" << endl;
-        if (title.EndsWith("/O"))
+        if (title.EndsWith("/O") || branchtype.BeginsWith("Bool"))
           implf << "const bool &" << funcname << "() {" << endl;
-        if (title.EndsWith("/D"))
+        if (title.EndsWith("/D") || branchtype.BeginsWith("Double"))
           implf << "const double &" << funcname << "() {" << endl;
       }
     }
@@ -998,6 +1034,7 @@ void makeCCFile(TFile *f, const string& Classname, const string& nameSpace, cons
 
     TString classname = branch->GetClassName();
     TString title = branch->GetTitle();
+    TString branchtype(branch->GetLeaf(branch->GetName())->GetTypeName());
     if (classname.Contains("vector")) {
       if (classname.Contains("edm::Wrapper") ) {
         classname = classname(0,classname.Length()-2);
@@ -1012,22 +1049,25 @@ void makeCCFile(TFile *f, const string& Classname, const string& nameSpace, cons
       if (classname != "" ) {
         implf << "const " << classname << " &" << aliasname << "()";
       } else {
-        if (title.EndsWith("/i")){
+        if (title.EndsWith("/i") || branchtype.BeginsWith("UInt")){
           implf << "const unsigned int &" << aliasname << "()";
         }
-        if (title.EndsWith("/l")){
+        if (title.EndsWith("/c") || branchtype.BeginsWith("UChar")){
+          implf << "const unsigned char &" << aliasname << "()";
+        }
+        if (title.EndsWith("/l") || branchtype.BeginsWith("Long")){
           implf << "const unsigned long long &" << aliasname << "()";
         }
-        if (title.EndsWith("/F")){
+        if (title.EndsWith("/F") || branchtype.BeginsWith("Float")){
           implf << "const float &" << aliasname << "()";
         }
-        if (title.EndsWith("/I")){
+        if (title.EndsWith("/I") || branchtype.BeginsWith("Int")){
           implf << "const int &" << aliasname << "()";
         }
-        if (title.EndsWith("/O")){
+        if (title.EndsWith("/O") || branchtype.BeginsWith("Bool")){
           implf << "const bool &" << aliasname << "()";
         }
-        if (title.EndsWith("/D")){
+        if (title.EndsWith("/D") || branchtype.BeginsWith("Double")){
           implf << "const double &" << aliasname << "()";
         }
       }
